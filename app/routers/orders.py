@@ -1,4 +1,6 @@
 import json
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -7,6 +9,8 @@ from ..models import Order
 from ..order_items import OrderItem
 from ..schemas import OrderCreate
 from ..s3_service import upload_document
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/orders",
@@ -40,6 +44,13 @@ def create_order(order: OrderCreate, db: Session = Depends(get_db)):
     db.add(db_order)
     db.commit()
     db.refresh(db_order)
+
+
+    logger.info(
+        "Order created: %s, customer: %s",
+        db_order.order_number,
+        db_order.customer
+    )
 
     return {
         "id": db_order.id,
@@ -126,6 +137,12 @@ def save_order_document(order_id: int, db: Session = Depends(get_db)):
 
     upload_document(
         json.dumps(document, ensure_ascii=False),
+        object_key
+    )
+
+
+    logger.info(
+        "Document uploaded to S3: %s",
         object_key
     )
 

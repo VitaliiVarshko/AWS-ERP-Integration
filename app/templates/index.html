@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP Integration Demo</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 0 20px;
+            background: #f5f6f7;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        label {
+            display: block;
+            margin-top: 12px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+
+        button {
+            margin-top: 15px;
+            padding: 10px 16px;
+            cursor: pointer;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background: #eee;
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            background: #eef5ff;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>ERP Integration Demo</h1>
+
+<div class="card">
+    <h2>Neuen Auftrag anlegen</h2>
+
+    <label for="orderNumber">Auftragsnummer</label>
+    <input id="orderNumber" value="ORD-AWS-002">
+
+    <label for="customer">Kunde</label>
+    <input id="customer" value="Demo GmbH">
+
+    <label for="product">Produkt</label>
+    <input id="product" value="Laptop Dell">
+
+    <label for="quantity">Menge</label>
+    <input id="quantity" type="number" value="2">
+
+    <button onclick="createOrder()">
+        Auftrag speichern
+    </button>
+
+    <div id="status" class="status"></div>
+</div>
+
+<div class="card">
+    <h2>Aufträge</h2>
+
+    <button onclick="loadOrders()">
+        Aufträge aktualisieren
+    </button>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Auftragsnummer</th>
+                <th>Kunde</th>
+                <th>Positionen</th>
+                <th>S3</th>
+            </tr>
+        </thead>
+
+        <tbody id="ordersTable">
+        </tbody>
+    </table>
+</div>
+
+<script>
+
+async function createOrder() {
+
+    const order = {
+        order_number: document.getElementById("orderNumber").value,
+        customer: document.getElementById("customer").value,
+        items: [
+            {
+                product: document.getElementById("product").value,
+                quantity: Number(
+                    document.getElementById("quantity").value
+                )
+            }
+        ]
+    };
+
+    const response = await fetch("/orders", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(order)
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+        document.getElementById("status").innerText =
+            "Auftrag erfolgreich gespeichert. ID: " + data.id;
+
+        loadOrders();
+    } else {
+        document.getElementById("status").innerText =
+            "Fehler: " + JSON.stringify(data);
+    }
+}
+
+
+async function loadOrders() {
+
+    const response = await fetch("/orders");
+
+    const orders = await response.json();
+
+    const table = document.getElementById("ordersTable");
+
+    table.innerHTML = "";
+
+    for (const order of orders) {
+
+        const row = document.createElement("tr");
+
+        const items = order.items
+            .map(item =>
+                item.product + "  " + item.quantity
+            )
+            .join("<br>");
+
+        row.innerHTML = `
+            <td>${order.id}</td>
+            <td>${order.order_number}</td>
+            <td>${order.customer}</td>
+            <td>${items}</td>
+            <td>
+                <button onclick="saveToS3(${order.id})">
+                    JSON  S3
+                </button>
+            </td>
+        `;
+
+        table.appendChild(row);
+    }
+}
+
+
+async function saveToS3(orderId) {
+
+    const response = await fetch(
+        `/orders/${orderId}/document`,
+        {
+            method: "POST"
+        }
+    );
+
+    const data = await response.json();
+
+    if (response.ok) {
+
+        document.getElementById("status").innerText =
+            "Dokument in S3 gespeichert: " +
+            data.s3_object;
+
+    } else {
+
+        document.getElementById("status").innerText =
+            "S3-Fehler: " + JSON.stringify(data);
+    }
+}
+
+
+loadOrders();
+
+</script>
+
+</body>
+</html>
